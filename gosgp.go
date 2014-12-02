@@ -41,6 +41,7 @@ const (
 
 var (
 	valid_password *regexp.Regexp
+	nlmd5          = NewNonleakyMd5()
 	max_length     = base64.StdEncoding.EncodedLen(md5.Size)
 )
 
@@ -90,8 +91,8 @@ func main() {
 		exit(1, err)
 	}
 
-    // []byte(...) creates a copy of the string-bytes (strings are read-only)
-    // so, we have to zero both the string and the copy
+	// []byte(...) creates a copy of the string-bytes (strings are read-only)
+	// so, we have to zero both the string and the copy
 	domain = []byte(opts.domain)
 	zeroString(&opts.domain)
 
@@ -162,12 +163,16 @@ func generatePass(out []byte, seed_parts ...[]byte) (err error) {
 // base64.StdEncoding.EncodedLen(len(password)) bytes big)
 func hashPassword(b64_hash, password []byte) {
 
-	// h := md5.New(); h.Write(password); h.Sum() leaks
-	// the password: it allocates an unreachable copy of
-	// itself when calling h.Sum()
-	h := md5.Sum(password)
-	hash := h[:]
+	var (
+		buf  [md5.Size]byte
+		hash = buf[:]
+	)
+	defer nlmd5.Reset()
 	defer zeroBytes(hash)
+
+	nlmd5.Reset()
+	nlmd5.Write(password)
+	nlmd5.Sum(hash)
 
 	base64.StdEncoding.Encode(b64_hash, hash)
 	replaceLikeSupergenpass(b64_hash)

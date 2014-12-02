@@ -14,7 +14,7 @@ URL string, so please only use domains.
     password: 123
     sGKicH8rFV
 
-## Authors
+### Authors
 
 * Mathias Gumz  <mg@2hoch5.com>   (rework, memory-cleanup, etc)
 * Jochen Breuer <info@dajool.com> (initial code)
