@@ -17,7 +17,7 @@ URL string, so please only use domains.
 ### Authors
 
 * Mathias Gumz  <mg@2hoch5.com>   (rework, memory-cleanup, etc)
-* Jochen Breuer <info@dajool.com> (initial code)
+* Jochen Breuer <brejoc@gmail.com> (initial code)
    note: code posted by Jochen http://paste.dajool.com/p3hfjmoor/zvimni/raw
 
 * Chris Zarate <chris@zarate.org> (supergenpass.com)
