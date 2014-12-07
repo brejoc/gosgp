@@ -68,7 +68,10 @@ func main() {
 	defer hasher.ZeroBytes()
 
 	if opts.length > hasher.MaxLength() {
-		exit(1, errorRequestToBig(opts.length, hasher.MaxLength()))
+		exit(1, errorRequestTooLong(opts.length, hasher.MaxLength()))
+	}
+	if opts.length < MIN_PASSWORD_LENGTH {
+		exit(1, errorRequestTooShort(opts.length, MIN_PASSWORD_LENGTH))
 	}
 
 	if opts.domain == "" {

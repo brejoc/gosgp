@@ -14,9 +14,14 @@ func exit(code int, err error) {
 	os.Exit(code)
 }
 
-func errorRequestToBig(in, max int) error {
-	return fmt.Errorf("requested password to long (%d, max %d)",
+func errorRequestTooLong(in, max int) error {
+	return fmt.Errorf("requested password too long (%d, max %d)",
 		in, max)
+}
+
+func errorRequestTooShort(in, min int) error {
+	return fmt.Errorf("requested password too short (%d, min %d)",
+		in, min)
 }
 
 func zeroBytes(data ...[]byte) {

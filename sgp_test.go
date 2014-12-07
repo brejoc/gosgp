@@ -5,6 +5,31 @@ import (
 	"testing"
 )
 
+func TestSupergenPassPasswordIsValid(t *testing.T) {
+	var samples = []struct {
+		pw    string
+		valid bool
+	}{
+		{"", false},
+		{"_", false},
+		{"a", false},
+		{"aA", false},
+		{"aA1", true},
+		{"A1", false},
+		{"1Aa", false},
+		{"a1A", true},
+	}
+
+	for i, sample := range samples {
+		valid := passwordIsValid([]byte(sample.pw))
+		t.Logf("%d check %q, expected %v, got %v", i, sample.pw, sample.valid, valid)
+		if valid != sample.valid {
+			t.Fatalf("%d mismatch validatePassword: %v vs %v",
+				sample.valid, valid)
+		}
+	}
+}
+
 func TestSupergenPassMd5(t *testing.T) {
 
 	var hasher = &SGPMd5{md5: NewNonleakyMd5()}

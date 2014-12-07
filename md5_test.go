@@ -19,7 +19,8 @@ func TestNonleakyMd5(t *testing.T) {
 	nlmd5.Write(data)
 	nlmd5.Sum(nonleaky)
 
-	t.Logf("expected %x, got %x", orig, nonleaky)
+	t.Logf("expected %x", orig)
+	t.Logf("     got %x", nonleaky)
 
 	if !bytes.Equal(nonleaky, orig[:]) {
 		t.Fatalf("mismatch between crypt.md5.Sum() and NonleakyMd5.Sum()")
