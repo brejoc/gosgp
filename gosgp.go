@@ -41,7 +41,6 @@ const (
 
 var (
 	valid_password *regexp.Regexp
-	nlmd5          = NewNonleakyMd5()
 	max_length     = base64.StdEncoding.EncodedLen(md5.Size)
 )
 
@@ -61,6 +60,7 @@ func main() {
 			lock_memory bool
 		}{length: 10, lock_memory: true}
 		password, domain, generated []byte
+		hasher                      SGP
 		err                         error
 	)
 
@@ -99,7 +99,10 @@ func main() {
 	generated = make([]byte, opts.length)
 	defer zeroBytes(generated)
 
-	err = SupergenPass(generated, password, domain)
+	hasher = &SGPMd5{md5: NewNonleakyMd5()}
+	defer hasher.ZeroBytes()
+
+	err = SupergenPass(generated, hasher, password, domain)
 	zeroBytes(password, domain)
 
 	fmt.Println()
@@ -113,44 +116,36 @@ func main() {
 	fmt.Println()
 }
 
-func SupergenPass(out []byte, password, domain []byte) (err error) {
-	return generatePass(out, password, []byte(":"), domain)
+func SupergenPass(out []byte, hasher SGP, password, domain []byte) (err error) {
+	return generatePass(out, hasher, password, []byte(":"), domain)
 }
 
-func generatePass(out []byte, seed_parts ...[]byte) (err error) {
+type SGP interface {
+	Generate(out []byte, pw_parts ...[]byte)
+	ZeroBytes()      // zero contents of HashBuf() and WorkBuf*()
+	HashBuf() []byte // used by HashPassword
+	WorkBufSize() int
+	WorkBuf1() []byte // used by generatePass
+	WorkBuf2() []byte //
+}
 
-	// after the first round we operate only on 2 buffers of
-	// size base64(md5(input)). to avoid spreading data all over
-	// the heap we just allocate one bigger buffer and hand out
-	// subslices to it to 'password', 'buffer' and 'buffer2'
-	var (
-		nbytes_seed = countBytes(seed_parts...)
-		nbytes_buf  = base64.StdEncoding.EncodedLen(md5.Size)
-		storage     = make([]byte, nbytes_seed+2*nbytes_buf)
-		seed        = storage[:nbytes_seed]
-		buffer      = storage[len(seed) : len(seed)+nbytes_buf]
-		buffer2     = storage[len(seed)+nbytes_buf:]
-	)
+func generatePass(out []byte, hasher SGP, pw_parts ...[]byte) (err error) {
 
-	if len(out) > nbytes_buf {
-		return errorRequestToBig(len(out), nbytes_buf)
+	if len(out) > hasher.WorkBufSize() {
+		return errorRequestToBig(len(out), hasher.WorkBufSize())
 	}
 
-	defer zeroBytes(storage)
-	concatBytesInto(seed, seed_parts...)
+	buffer, buffer2 := hasher.WorkBuf1(), hasher.WorkBuf2()
 
-	// initial wash of the password
-	// seed is used to get the rounds going and after that
-	// only buffer and buffer2 are used
-	hashPassword(buffer, seed)
+	hasher.Generate(buffer, pw_parts...)
 	for round := 1; round < WASH_ROUNDS; round += 1 {
-		hashPassword(buffer2, buffer)
+		hasher.Generate(buffer2, buffer)
 		buffer, buffer2 = buffer2, buffer
 	}
 
 	// check and wash until hash ist valid
 	for !valid_password.Match(buffer[:len(out)]) {
-		hashPassword(buffer2, buffer)
+		hasher.Generate(buffer2, buffer)
 		buffer, buffer2 = buffer2, buffer
 	}
 
@@ -158,24 +153,36 @@ func generatePass(out []byte, seed_parts ...[]byte) (err error) {
 	return
 }
 
-// pipes 'password' through md5 and base64 it afterwards
-// into 'b64_hash' (which must be at least
-// base64.StdEncoding.EncodedLen(len(password)) bytes big)
-func hashPassword(b64_hash, password []byte) {
+type SGPMd5 struct {
+	md5 *NonleakyMd5
+	buf [(2 * 24) + md5.Size]byte // 24 = base64.StdEncoding.EncodedLen(md5.Size)
+}
 
-	var (
-		buf  [md5.Size]byte
-		hash = buf[:]
-	)
-	defer nlmd5.Reset()
+func (s *SGPMd5) WorkBufSize() int { return base64.StdEncoding.EncodedLen(md5.Size) }
+func (s *SGPMd5) HashBuf() []byte  { return s.buf[2*s.WorkBufSize():] }
+func (s *SGPMd5) WorkBuf1() []byte { return s.buf[:s.WorkBufSize()] }
+func (s *SGPMd5) WorkBuf2() []byte { return s.buf[s.WorkBufSize() : 2*s.WorkBufSize()] }
+
+func (s *SGPMd5) Generate(out []byte, pw_parts ...[]byte) {
+
+	hash := s.HashBuf()
+
+	defer s.md5.Reset()
 	defer zeroBytes(hash)
 
-	nlmd5.Reset()
-	nlmd5.Write(password)
-	nlmd5.Sum(hash)
+	s.md5.Reset()
+	for i := range pw_parts {
+		s.md5.Write(pw_parts[i])
+	}
+	s.md5.Sum(hash)
 
-	base64.StdEncoding.Encode(b64_hash, hash)
-	replaceLikeSupergenpass(b64_hash)
+	base64.StdEncoding.Encode(out, hash)
+	replaceLikeSupergenpass(out)
+}
+
+func (s *SGPMd5) ZeroBytes() {
+	s.md5.Reset()
+	zeroBytes(s.buf[:])
 }
 
 func replaceLikeSupergenpass(src []byte) {

@@ -7,6 +7,8 @@ import (
 
 func TestSupergenPass(t *testing.T) {
 
+	var hasher = &SGPMd5{md5: NewNonleakyMd5()}
+
 	// samples to match against, created via
 	// https://chriszarate.github.io/supergenpass/mobile/
 	var samples = []struct{ domain, pw, supergenpass string }{
@@ -17,7 +19,7 @@ func TestSupergenPass(t *testing.T) {
 
 	for i, sample := range samples {
 		pw := make([]byte, len(sample.supergenpass))
-		err := SupergenPass(pw, []byte(sample.pw), []byte(sample.domain))
+		err := SupergenPass(pw, hasher, []byte(sample.pw), []byte(sample.domain))
 		t.Logf("%d supergenpass(%q,%q) = %q", i, sample.pw, sample.domain, pw)
 		if err != nil {
 			t.Fatal(err)
