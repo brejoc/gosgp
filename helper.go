@@ -19,21 +19,6 @@ func errorRequestToBig(in, max int) error {
 		in, max)
 }
 
-func concatBytesInto(dst []byte, data ...[]byte) {
-	for i, j := 0, 0; i < len(data); i++ {
-		if j += copy(dst[j:], data[i]); j >= len(dst) {
-			break
-		}
-	}
-}
-
-func countBytes(data ...[]byte) (n int) {
-	for i := range data {
-		n += len(data[i])
-	}
-	return n
-}
-
 func zeroBytes(data ...[]byte) {
 	for i := range data {
 		for j := range data[i] {
