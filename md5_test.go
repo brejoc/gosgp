@@ -35,7 +35,7 @@ func TestNonleakyMd5(t *testing.T) {
 		}
 	}
 
-	for _, b := range nlmd5.tmp {
+	for _, b := range _MD5_PADDING[1:] {
 		if b != 0 {
 			t.Fatal("NonleakyMd5.tmp not correctly cleaned")
 		}

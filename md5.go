@@ -10,15 +10,18 @@ import (
 // why is a special implementation of crypt.md5 needed? because
 // currently there is no way of getting a hold on either the
 // digest-copy in md5.New().Sum() or on the created digest in
-// md5.Sum() or on the tmp-buffer in md5.checkSum(). in order
-// to avoid reimplementing everything i opted to use reflect
-// and a little helper to modify only minor aspects of md5.checkSum.
+// md5.Sum() in md5.checkSum(). in order to avoid reimplementing
+// everything i opted to use reflect and a little helper to modify
+// only minor aspects of md5.checkSum.
 //
 // NonleakyMd5.Reset() ensures the nonleaky nature
 //
 // worth reading: http://blog.golang.org/laws-of-reflection
 
+var _MD5_PADDING [64]byte // // read-only block, only purpose: padding
+
 func init() {
+	_MD5_PADDING[0] = 0x80
 	// create a temporary NonleakyMd5 and access the internal
 	// fields. if something in the implementation changed
 	// dramatically, the NonleakyMd5.field_* functions should
@@ -33,7 +36,6 @@ func init() {
 type NonleakyMd5 struct {
 	hash.Hash
 	hash_value reflect.Value
-	tmp        [64]byte
 }
 
 // shared functions with crypto.md5
@@ -53,7 +55,6 @@ func NewNonleakyMd5() *NonleakyMd5 {
 func (d *NonleakyMd5) Reset() {
 	d.Hash.Reset()
 	zeroBytes(d.field_x()[:])
-	zeroBytes(d.tmp[:])
 }
 
 func (d *NonleakyMd5) field_s() *[4]uint32 {
@@ -82,19 +83,20 @@ func (d *NonleakyMd5) Sum(digest []byte) []byte {
 	}
 
 	len := d.field_len()
-	d.tmp[0] = 0x80
 	if len%64 < 56 {
-		d.Write(d.tmp[0 : 56-len%64])
+		d.Write(_MD5_PADDING[0 : 56-len%64])
 	} else {
-		d.Write(d.tmp[0 : 64+56-len%64])
+		d.Write(_MD5_PADDING[0 : 64+56-len%64])
 	}
 
 	// Length in bits.
+	var tmp [8]byte
 	len <<= 3
 	for i := uint(0); i < 8; i++ {
-		d.tmp[i] = byte(len >> (8 * i))
+		tmp[i] = byte(len >> (8 * i))
 	}
-	d.Write(d.tmp[0:8])
+	d.Write(tmp[:])
+	zeroBytes(tmp[:])
 
 	if d.field_nx() != 0 {
 		panic("d.nx != 0")

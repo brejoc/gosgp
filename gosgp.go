@@ -23,33 +23,14 @@ package main
 */
 
 import (
-	"crypto/md5"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
-	"regexp"
 
 	"code.google.com/p/go.crypto/ssh/terminal"
 )
 
-const (
-	ABOUT             = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
-	VALID_PASSWORD_RE = "^[a-z][a-zA-Z0-9]*(?:(?:[A-Z][a-zA-Z0-9]*[0-9])|(?:[0-9][a-zA-Z0-9]*[A-Z]))[a-zA-Z0-9]*$"
-	WASH_ROUNDS       = 10
-)
-
-var (
-	valid_password *regexp.Regexp
-	max_length     = base64.StdEncoding.EncodedLen(md5.Size)
-)
-
-func init() {
-	var err error
-	if valid_password, err = regexp.Compile(VALID_PASSWORD_RE); err != nil {
-		panic(err)
-	}
-}
+const ABOUT = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
 
 func main() {
 
@@ -58,6 +39,7 @@ func main() {
 			domain      string
 			length      int
 			lock_memory bool
+			sha         bool
 		}{length: 10, lock_memory: true}
 		password, domain, generated []byte
 		hasher                      SGP
@@ -66,6 +48,7 @@ func main() {
 
 	flag.StringVar(&opts.domain, "domain", opts.domain, "domain")
 	flag.IntVar(&opts.length, "length", opts.length, "length")
+	flag.BoolVar(&opts.sha, "sha", opts.sha, "use sha512 instead of md5")
 	flag.BoolVar(&opts.lock_memory, "lock", opts.lock_memory, "lock memory")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, ABOUT, fmt.Sprintf("usage of %s:\n", os.Args[0]))
@@ -73,12 +56,19 @@ func main() {
 	}
 	flag.Parse()
 
-	if opts.length > max_length {
-		exit(1, errorRequestToBig(opts.length, max_length))
-	}
-
 	if opts.lock_memory {
 		lockMemory()
+	}
+
+	if !opts.sha {
+		hasher = &SGPMd5{md5: NewNonleakyMd5()}
+	} else {
+		hasher = &SGPSha512{sha512: NewNonleakySha512()}
+	}
+	defer hasher.ZeroBytes()
+
+	if opts.length > hasher.MaxLength() {
+		exit(1, errorRequestToBig(opts.length, hasher.MaxLength()))
 	}
 
 	if opts.domain == "" {
@@ -99,10 +89,8 @@ func main() {
 	generated = make([]byte, opts.length)
 	defer zeroBytes(generated)
 
-	hasher = &SGPMd5{md5: NewNonleakyMd5()}
-	defer hasher.ZeroBytes()
-
 	err = SupergenPass(generated, hasher, password, domain)
+	hasher.ZeroBytes()
 	zeroBytes(password, domain)
 
 	fmt.Println()
@@ -114,86 +102,4 @@ func main() {
 	os.Stdout.Write(generated)
 	zeroBytes(generated)
 	fmt.Println()
-}
-
-func SupergenPass(out []byte, hasher SGP, password, domain []byte) (err error) {
-	return generatePass(out, hasher, password, []byte(":"), domain)
-}
-
-type SGP interface {
-	Generate(out []byte, pw_parts ...[]byte)
-	ZeroBytes()      // zero contents of HashBuf() and WorkBuf*()
-	HashBuf() []byte // used by HashPassword
-	WorkBufSize() int
-	WorkBuf1() []byte // used by generatePass
-	WorkBuf2() []byte //
-}
-
-func generatePass(out []byte, hasher SGP, pw_parts ...[]byte) (err error) {
-
-	if len(out) > hasher.WorkBufSize() {
-		return errorRequestToBig(len(out), hasher.WorkBufSize())
-	}
-
-	buffer, buffer2 := hasher.WorkBuf1(), hasher.WorkBuf2()
-
-	hasher.Generate(buffer, pw_parts...)
-	for round := 1; round < WASH_ROUNDS; round += 1 {
-		hasher.Generate(buffer2, buffer)
-		buffer, buffer2 = buffer2, buffer
-	}
-
-	// check and wash until hash ist valid
-	for !valid_password.Match(buffer[:len(out)]) {
-		hasher.Generate(buffer2, buffer)
-		buffer, buffer2 = buffer2, buffer
-	}
-
-	copy(out, buffer)
-	return
-}
-
-type SGPMd5 struct {
-	md5 *NonleakyMd5
-	buf [(2 * 24) + md5.Size]byte // 24 = base64.StdEncoding.EncodedLen(md5.Size)
-}
-
-func (s *SGPMd5) WorkBufSize() int { return base64.StdEncoding.EncodedLen(md5.Size) }
-func (s *SGPMd5) HashBuf() []byte  { return s.buf[2*s.WorkBufSize():] }
-func (s *SGPMd5) WorkBuf1() []byte { return s.buf[:s.WorkBufSize()] }
-func (s *SGPMd5) WorkBuf2() []byte { return s.buf[s.WorkBufSize() : 2*s.WorkBufSize()] }
-
-func (s *SGPMd5) Generate(out []byte, pw_parts ...[]byte) {
-
-	hash := s.HashBuf()
-
-	defer s.md5.Reset()
-	defer zeroBytes(hash)
-
-	s.md5.Reset()
-	for i := range pw_parts {
-		s.md5.Write(pw_parts[i])
-	}
-	s.md5.Sum(hash)
-
-	base64.StdEncoding.Encode(out, hash)
-	replaceLikeSupergenpass(out)
-}
-
-func (s *SGPMd5) ZeroBytes() {
-	s.md5.Reset()
-	zeroBytes(s.buf[:])
-}
-
-func replaceLikeSupergenpass(src []byte) {
-	for i := range src {
-		switch src[i] {
-		case '=':
-			src[i] = 'A'
-		case '/':
-			src[i] = '8'
-		case '+':
-			src[i] = '9'
-		}
-	}
 }
