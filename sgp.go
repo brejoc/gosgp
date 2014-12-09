@@ -8,11 +8,10 @@ const (
 type SGP interface {
 	MaxLength() int
 	Generate(out []byte, pw_parts ...[]byte)
-	ZeroBytes()      // zero contents of HashBuf() and WorkBuf*()
-	HashBuf() []byte // used by HashPassword
-	WorkBufSize() int
-	WorkBuf1() []byte // used by generatePass
-	WorkBuf2() []byte //
+	ZeroBytes()
+	PwBufSize() int
+	PwBuf() []byte   // used by generatePass
+	HashBuf() []byte // used by Generate()
 }
 
 func SupergenPass(out []byte, hasher SGP, password, domain []byte) (err error) {
@@ -21,25 +20,21 @@ func SupergenPass(out []byte, hasher SGP, password, domain []byte) (err error) {
 
 func generatePass(out []byte, hasher SGP, pw_parts ...[]byte) (err error) {
 
-	if len(out) > hasher.WorkBufSize() {
-		return errorRequestTooLong(len(out), hasher.WorkBufSize())
+	if len(out) > hasher.MaxLength() {
+		return errorRequestTooLong(len(out), hasher.MaxLength())
 	}
 
-	buffer, buffer2 := hasher.WorkBuf1(), hasher.WorkBuf2()
-
-	hasher.Generate(buffer, pw_parts...)
+	pw := hasher.PwBuf()
+	hasher.Generate(pw, pw_parts...)
 	for round := 1; round < WASH_ROUNDS; round += 1 {
-		hasher.Generate(buffer2, buffer)
-		buffer, buffer2 = buffer2, buffer
+		hasher.Generate(pw, pw)
 	}
 
-	// check and wash until hash is valid
-	for !passwordIsValid(buffer[:len(out)]) {
-		hasher.Generate(buffer2, buffer)
-		buffer, buffer2 = buffer2, buffer
+	for !passwordIsValid(pw[:len(out)]) {
+		hasher.Generate(pw, pw)
 	}
 
-	copy(out, buffer)
+	copy(out, pw)
 	return
 }
 
