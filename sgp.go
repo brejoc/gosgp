@@ -1,56 +1,68 @@
 package main
 
-const (
-	WASH_ROUNDS         = 10
-	MIN_PASSWORD_LENGTH = 4
+import (
+	"encoding/base64"
+	"hash"
 )
 
+const (
+	WASH_ROUNDS          = 10
+	MIN_PASSWORD_LENGTH  = 4
+	_SGP_BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678998"
+)
+
+// supergenpass uses a special base64-encoding which replaces
+// '+' by '9' and '/' by '8'. this is easily done by using
+// _SGP_BASE64_ALPHABET. after encoding the hash the padding
+// chars must be replaced by '=' signs as well, see SGP.FixPadding()
+var sgpBase64 *base64.Encoding
+
+func init() {
+	sgpBase64 = base64.NewEncoding(_SGP_BASE64_ALPHABET)
+}
+
 type SGP interface {
+	Hasher() hash.Hash
 	MaxLength() int
-	Generate(out []byte, pw_parts ...[]byte)
 	ZeroBytes()
 	PwBufSize() int
 	PwBuf() []byte   // used by generatePass
 	HashBuf() []byte // used by Generate()
+	FixPadding([]byte)
 }
 
 func SupergenPass(out []byte, hasher SGP, password, domain []byte) (err error) {
 	return generatePass(out, hasher, password, []byte(":"), domain)
 }
 
-func generatePass(out []byte, hasher SGP, pw_parts ...[]byte) (err error) {
+func generatePass(out []byte, sgp SGP, pw_parts ...[]byte) (err error) {
 
-	if len(out) > hasher.MaxLength() {
-		return errorRequestTooLong(len(out), hasher.MaxLength())
+	if len(out) > sgp.MaxLength() {
+		return errorRequestTooLong(len(out), sgp.MaxLength())
 	}
 
-	pw := hasher.PwBuf()
-	hasher.Generate(pw, pw_parts...)
+	pw := sgp.PwBuf()
+	digest := sgp.HashBuf()
+	defer zeroBytes(digest)
+
+	hashSlices(digest, sgp.Hasher(), pw_parts...)
+	sgpBase64.Encode(pw, digest)
+	sgp.FixPadding(pw)
+
 	for round := 1; round < WASH_ROUNDS; round += 1 {
-		hasher.Generate(pw, pw)
+		hashSlices(digest, sgp.Hasher(), pw)
+		sgpBase64.Encode(pw, digest)
+		sgp.FixPadding(pw)
 	}
 
 	for !passwordIsValid(pw[:len(out)]) {
-		hasher.Generate(pw, pw)
+		hashSlices(digest, sgp.Hasher(), pw)
+		sgpBase64.Encode(pw, digest)
+		sgp.FixPadding(pw)
 	}
 
 	copy(out, pw)
 	return
-}
-
-// see 'var customBase64 = function (str) { ... } ' in
-// github.com/chriszarate/supergenpass-lib/blob/master/supergenpass-lib.js
-func replaceLikeSupergenpass(src []byte) {
-	for i := range src {
-		switch src[i] {
-		case '=':
-			src[i] = 'A'
-		case '/':
-			src[i] = '8'
-		case '+':
-			src[i] = '9'
-		}
-	}
 }
 
 // returns true only if:
@@ -83,4 +95,13 @@ func passwordIsValid(password []byte) bool {
 	}
 
 	return (has_digit && has_LETTER)
+}
+
+func hashSlices(out []byte, hasher hash.Hash, slices ...[]byte) {
+	defer hasher.Reset()
+	hasher.Reset()
+	for i := range slices {
+		hasher.Write(slices[i])
+	}
+	hasher.Sum(out)
 }
