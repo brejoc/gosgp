@@ -25,7 +25,6 @@ type SGP interface {
 	Hasher() hash.Hash
 	MaxLength() int
 	ZeroBytes()
-	PwBufSize() int
 	PwBuf() []byte   // used by generatePass
 	HashBuf() []byte // used by Generate()
 	FixPadding([]byte)
