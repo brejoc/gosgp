@@ -15,11 +15,7 @@ const (
 // '+' by '9' and '/' by '8'. this is easily done by using
 // _SGP_BASE64_ALPHABET. after encoding the hash the padding
 // chars must be replaced by '=' signs as well, see SGP.FixPadding()
-var sgpBase64 *base64.Encoding
-
-func init() {
-	sgpBase64 = base64.NewEncoding(_SGP_BASE64_ALPHABET)
-}
+var sgpBase64 *base64.Encoding = base64.NewEncoding(_SGP_BASE64_ALPHABET)
 
 type SGP interface {
 	Hasher() hash.Hash
@@ -30,11 +26,11 @@ type SGP interface {
 	FixPadding([]byte)
 }
 
-func SupergenPass(out []byte, hasher SGP, password, domain []byte) (err error) {
+func SupergenPass(out []byte, hasher SGP, password, domain []byte) error {
 	return generatePass(out, hasher, password, []byte(":"), domain)
 }
 
-func generatePass(out []byte, sgp SGP, pw_parts ...[]byte) (err error) {
+func generatePass(out []byte, sgp SGP, pw_parts ...[]byte) error {
 
 	if len(out) > sgp.MaxLength() {
 		return errorRequestTooLong(len(out), sgp.MaxLength())
@@ -61,7 +57,7 @@ func generatePass(out []byte, sgp SGP, pw_parts ...[]byte) (err error) {
 	}
 
 	copy(out, pw)
-	return
+	return nil
 }
 
 // returns true only if:

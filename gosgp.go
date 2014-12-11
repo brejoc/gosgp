@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"os"
 
-	"code.google.com/p/go.crypto/ssh/terminal"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const ABOUT = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
@@ -42,7 +42,9 @@ func main() {
 			sha         bool
 		}{length: 10, lock_memory: true}
 		password, domain, generated []byte
-		hasher                      SGP
+		sgp_md5                         = SGPMd5{md5: NewNonleakyMd5()}
+		sgp_sha512                      = SGPSha512{sha512: NewNonleakySha512()}
+		hasher                      SGP = &sgp_md5
 		err                         error
 	)
 
@@ -50,21 +52,17 @@ func main() {
 	flag.IntVar(&opts.length, "length", opts.length, "length")
 	flag.BoolVar(&opts.sha, "sha", opts.sha, "use sha512 instead of md5")
 	flag.BoolVar(&opts.lock_memory, "lock", opts.lock_memory, "lock memory")
-	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, ABOUT, fmt.Sprintf("usage of %s:\n", os.Args[0]))
-		flag.PrintDefaults()
-	}
+	flag.Usage = usage
 	flag.Parse()
 
 	if opts.lock_memory {
 		lockMemory()
 	}
 
-	if !opts.sha {
-		hasher = &SGPMd5{md5: NewNonleakyMd5()}
-	} else {
-		hasher = &SGPSha512{sha512: NewNonleakySha512()}
+	if opts.sha {
+		hasher = &sgp_sha512
 	}
+
 	defer hasher.ZeroBytes()
 
 	if opts.length > hasher.MaxLength() {
@@ -105,4 +103,9 @@ func main() {
 	os.Stdout.Write(generated)
 	zeroBytes(generated)
 	fmt.Println()
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, ABOUT, fmt.Sprintf("usage of %s:\n", os.Args[0]))
+	flag.PrintDefaults()
 }
