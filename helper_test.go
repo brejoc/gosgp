@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 )
@@ -34,16 +33,5 @@ func TestZeroString(t *testing.T) {
 		if b != 0 {
 			t.Fatalf("byte at index %d not 0, but %d", i, b)
 		}
-	}
-}
-
-func TestConcatBytes(t *testing.T) {
-
-	var data = []byte{1, 2, 2, 3, 3, 3, 4, 4, 4, 4}
-	var result = make([]byte, len(data))
-
-	concatBytesInto(result, data[:1], data[1:3], data[3:6], data[6:])
-	if !bytes.Equal(result, data) {
-		t.Fatalf("expected %v, got %v", data, result)
 	}
 }

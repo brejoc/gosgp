@@ -23,34 +23,14 @@ package main
 */
 
 import (
-	"crypto/md5"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
-	"regexp"
 
-	"code.google.com/p/go.crypto/ssh/terminal"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
-const (
-	ABOUT             = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
-	VALID_PASSWORD_RE = "^[a-z][a-zA-Z0-9]*(?:(?:[A-Z][a-zA-Z0-9]*[0-9])|(?:[0-9][a-zA-Z0-9]*[A-Z]))[a-zA-Z0-9]*$"
-	WASH_ROUNDS       = 10
-)
-
-var (
-	valid_password *regexp.Regexp
-	nlmd5          = NewNonleakyMd5()
-	max_length     = base64.StdEncoding.EncodedLen(md5.Size)
-)
-
-func init() {
-	var err error
-	if valid_password, err = regexp.Compile(VALID_PASSWORD_RE); err != nil {
-		panic(err)
-	}
-}
+const ABOUT = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
 
 func main() {
 
@@ -59,26 +39,37 @@ func main() {
 			domain      string
 			length      int
 			lock_memory bool
+			sha         bool
 		}{length: 10, lock_memory: true}
 		password, domain, generated []byte
+		sgp_md5                         = SGPMd5{md5: NewNonleakyMd5()}
+		sgp_sha512                      = SGPSha512{sha512: NewNonleakySha512()}
+		hasher                      SGP = &sgp_md5
 		err                         error
 	)
 
 	flag.StringVar(&opts.domain, "domain", opts.domain, "domain")
 	flag.IntVar(&opts.length, "length", opts.length, "length")
+	flag.BoolVar(&opts.sha, "sha", opts.sha, "use sha512 instead of md5")
 	flag.BoolVar(&opts.lock_memory, "lock", opts.lock_memory, "lock memory")
-	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, ABOUT, fmt.Sprintf("usage of %s:\n", os.Args[0]))
-		flag.PrintDefaults()
-	}
+	flag.Usage = usage
 	flag.Parse()
-
-	if opts.length > max_length {
-		exit(1, errorRequestToBig(opts.length, max_length))
-	}
 
 	if opts.lock_memory {
 		lockMemory()
+	}
+
+	if opts.sha {
+		hasher = &sgp_sha512
+	}
+
+	defer hasher.ZeroBytes()
+
+	if opts.length > hasher.MaxLength() {
+		exit(1, errorRequestTooLong(opts.length, hasher.MaxLength()))
+	}
+	if opts.length < MIN_PASSWORD_LENGTH {
+		exit(1, errorRequestTooShort(opts.length, MIN_PASSWORD_LENGTH))
 	}
 
 	if opts.domain == "" {
@@ -99,7 +90,8 @@ func main() {
 	generated = make([]byte, opts.length)
 	defer zeroBytes(generated)
 
-	err = SupergenPass(generated, password, domain)
+	err = SupergenPass(generated, hasher, password, domain)
+	hasher.ZeroBytes()
 	zeroBytes(password, domain)
 
 	fmt.Println()
@@ -113,80 +105,7 @@ func main() {
 	fmt.Println()
 }
 
-func SupergenPass(out []byte, password, domain []byte) (err error) {
-	return generatePass(out, password, []byte(":"), domain)
-}
-
-func generatePass(out []byte, seed_parts ...[]byte) (err error) {
-
-	// after the first round we operate only on 2 buffers of
-	// size base64(md5(input)). to avoid spreading data all over
-	// the heap we just allocate one bigger buffer and hand out
-	// subslices to it to 'password', 'buffer' and 'buffer2'
-	var (
-		nbytes_seed = countBytes(seed_parts...)
-		nbytes_buf  = base64.StdEncoding.EncodedLen(md5.Size)
-		storage     = make([]byte, nbytes_seed+2*nbytes_buf)
-		seed        = storage[:nbytes_seed]
-		buffer      = storage[len(seed) : len(seed)+nbytes_buf]
-		buffer2     = storage[len(seed)+nbytes_buf:]
-	)
-
-	if len(out) > nbytes_buf {
-		return errorRequestToBig(len(out), nbytes_buf)
-	}
-
-	defer zeroBytes(storage)
-	concatBytesInto(seed, seed_parts...)
-
-	// initial wash of the password
-	// seed is used to get the rounds going and after that
-	// only buffer and buffer2 are used
-	hashPassword(buffer, seed)
-	for round := 1; round < WASH_ROUNDS; round += 1 {
-		hashPassword(buffer2, buffer)
-		buffer, buffer2 = buffer2, buffer
-	}
-
-	// check and wash until hash ist valid
-	for !valid_password.Match(buffer[:len(out)]) {
-		hashPassword(buffer2, buffer)
-		buffer, buffer2 = buffer2, buffer
-	}
-
-	copy(out, buffer)
-	return
-}
-
-// pipes 'password' through md5 and base64 it afterwards
-// into 'b64_hash' (which must be at least
-// base64.StdEncoding.EncodedLen(len(password)) bytes big)
-func hashPassword(b64_hash, password []byte) {
-
-	var (
-		buf  [md5.Size]byte
-		hash = buf[:]
-	)
-	defer nlmd5.Reset()
-	defer zeroBytes(hash)
-
-	nlmd5.Reset()
-	nlmd5.Write(password)
-	nlmd5.Sum(hash)
-
-	base64.StdEncoding.Encode(b64_hash, hash)
-	replaceLikeSupergenpass(b64_hash)
-}
-
-func replaceLikeSupergenpass(src []byte) {
-	for i := range src {
-		switch src[i] {
-		case '=':
-			src[i] = 'A'
-		case '/':
-			src[i] = '8'
-		case '+':
-			src[i] = '9'
-		}
-	}
+func usage() {
+	fmt.Fprintln(os.Stderr, ABOUT, fmt.Sprintf("usage of %s:\n", os.Args[0]))
+	flag.PrintDefaults()
 }

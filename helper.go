@@ -14,24 +14,14 @@ func exit(code int, err error) {
 	os.Exit(code)
 }
 
-func errorRequestToBig(in, max int) error {
-	return fmt.Errorf("requested password to long (%d, max %d)",
+func errorRequestTooLong(in, max int) error {
+	return fmt.Errorf("requested password too long (%d, max %d)",
 		in, max)
 }
 
-func concatBytesInto(dst []byte, data ...[]byte) {
-	for i, j := 0, 0; i < len(data); i++ {
-		if j += copy(dst[j:], data[i]); j >= len(dst) {
-			break
-		}
-	}
-}
-
-func countBytes(data ...[]byte) (n int) {
-	for i := range data {
-		n += len(data[i])
-	}
-	return n
+func errorRequestTooShort(in, min int) error {
+	return fmt.Errorf("requested password too short (%d, min %d)",
+		in, min)
 }
 
 func zeroBytes(data ...[]byte) {
