@@ -1,21 +1,11 @@
 package main
 
-import (
-	"encoding/base64"
-	"hash"
-)
+import "hash"
 
 const (
-	WASH_ROUNDS          = 10
-	MIN_PASSWORD_LENGTH  = 4
-	_SGP_BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345678998"
+	WASH_ROUNDS         = 10
+	MIN_PASSWORD_LENGTH = 4
 )
-
-// supergenpass uses a special base64-encoding which replaces
-// '+' by '9' and '/' by '8'. this is easily done by using
-// _SGP_BASE64_ALPHABET. after encoding the hash the padding
-// chars must be replaced by '=' signs as well, see SGP.FixPadding()
-var sgpBase64 *base64.Encoding = base64.NewEncoding(_SGP_BASE64_ALPHABET)
 
 type SGP interface {
 	Hasher() hash.Hash
@@ -41,18 +31,18 @@ func generatePass(out []byte, sgp SGP, pw_parts ...[]byte) error {
 	defer zeroBytes(digest)
 
 	hashSlices(digest, sgp.Hasher(), pw_parts...)
-	sgpBase64.Encode(pw, digest)
+	sgpBase64(pw, digest, _SGP_BASE64_ALPHABET)
 	sgp.FixPadding(pw)
 
 	for round := 1; round < WASH_ROUNDS; round += 1 {
 		hashSlices(digest, sgp.Hasher(), pw)
-		sgpBase64.Encode(pw, digest)
+		sgpBase64(pw, digest, _SGP_BASE64_ALPHABET)
 		sgp.FixPadding(pw)
 	}
 
 	for !passwordIsValid(pw[:len(out)]) {
 		hashSlices(digest, sgp.Hasher(), pw)
-		sgpBase64.Encode(pw, digest)
+		sgpBase64(pw, digest, _SGP_BASE64_ALPHABET)
 		sgp.FixPadding(pw)
 	}
 
