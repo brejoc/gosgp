@@ -73,8 +73,12 @@ func main() {
 	}
 
 	if opts.domain == "" {
-		fmt.Print("  domain: ")
-		fmt.Scanf("%s", &opts.domain)
+		if len(flag.Args()) > 0 {
+			opts.domain = flag.Arg(0)
+		} else {
+			fmt.Print("  domain: ")
+			fmt.Scanf("%s", &opts.domain)
+		}
 	}
 
 	fmt.Printf("password: ")
