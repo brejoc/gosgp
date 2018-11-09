@@ -43,7 +43,7 @@ func zeroBytes(data ...[]byte) {
 // hand back the helper byte-slice.
 func zeroString(s *string) {
 	header := (*reflect.StringHeader)(unsafe.Pointer(s))
-	buf_header := reflect.SliceHeader{Data: header.Data, Len: header.Len, Cap: header.Len}
-	buf := (*[]byte)(unsafe.Pointer(&buf_header))
+	bufHeader := reflect.SliceHeader{Data: header.Data, Len: header.Len, Cap: header.Len}
+	buf := (*[]byte)(unsafe.Pointer(&bufHeader))
 	zeroBytes(*buf)
 }

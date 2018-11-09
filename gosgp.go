@@ -30,37 +30,37 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-const ABOUT = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
+const about = "gosgp - repeatable password generator (golang-port of supergenpass.com)"
 
 func main() {
 
 	var (
 		opts = struct {
-			domain      string
-			length      int
-			lock_memory bool
-			sha         bool
-		}{length: 10, lock_memory: true}
+			domain     string
+			length     int
+			lockMemory bool
+			sha        bool
+		}{length: 10, lockMemory: true}
 		password, domain, generated []byte
-		sgp_md5                         = SGPMd5{md5: NewNonleakyMd5()}
-		sgp_sha512                      = SGPSha512{sha512: NewNonleakySha512()}
-		hasher                      SGP = &sgp_md5
+		sgpMd5                          = SGPMd5{md5: NewNonleakyMd5()}
+		sgpSha512                       = SGPSha512{sha512: NewNonleakySha512()}
+		hasher                      SGP = &sgpMd5
 		err                         error
 	)
 
 	flag.StringVar(&opts.domain, "domain", opts.domain, "domain")
 	flag.IntVar(&opts.length, "length", opts.length, "length")
 	flag.BoolVar(&opts.sha, "sha", opts.sha, "use sha512 instead of md5")
-	flag.BoolVar(&opts.lock_memory, "lock", opts.lock_memory, "lock memory")
+	flag.BoolVar(&opts.lockMemory, "lock", opts.lockMemory, "lock memory")
 	flag.Usage = usage
 	flag.Parse()
 
-	if opts.lock_memory {
+	if opts.lockMemory {
 		lockMemory()
 	}
 
 	if opts.sha {
-		hasher = &sgp_sha512
+		hasher = &sgpSha512
 	}
 
 	defer hasher.ZeroBytes()
@@ -68,8 +68,8 @@ func main() {
 	if opts.length > hasher.MaxLength() {
 		exit(1, errorRequestTooLong(opts.length, hasher.MaxLength()))
 	}
-	if opts.length < MIN_PASSWORD_LENGTH {
-		exit(1, errorRequestTooShort(opts.length, MIN_PASSWORD_LENGTH))
+	if opts.length < minPasswordLength {
+		exit(1, errorRequestTooShort(opts.length, minPasswordLength))
 	}
 
 	if opts.domain == "" {
@@ -110,6 +110,6 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, ABOUT, fmt.Sprintf("usage of %s:\n", os.Args[0]))
+	fmt.Fprintln(os.Stderr, about, fmt.Sprintf("usage of %s:\n", os.Args[0]))
 	flag.PrintDefaults()
 }

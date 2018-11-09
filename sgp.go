@@ -3,8 +3,8 @@ package main
 import "hash"
 
 const (
-	WASH_ROUNDS         = 10
-	MIN_PASSWORD_LENGTH = 4
+	washRounds        = 10
+	minPasswordLength = 4
 )
 
 type SGP interface {
@@ -34,7 +34,7 @@ func generatePass(out []byte, sgp SGP, pw_parts ...[]byte) error {
 	sgpBase64(pw, digest, _SGP_BASE64_ALPHABET)
 	sgp.FixPadding(pw)
 
-	for round := 1; round < WASH_ROUNDS; round += 1 {
+	for round := 1; round < washRounds; round += 1 {
 		hashSlices(digest, sgp.Hasher(), pw)
 		sgpBase64(pw, digest, _SGP_BASE64_ALPHABET)
 		sgp.FixPadding(pw)
@@ -68,18 +68,18 @@ func passwordIsValid(password []byte) bool {
 		return false
 	}
 
-	var has_digit, has_LETTER bool
+	var hasDigit, hasLetter bool
 
-	for i := 0; !(has_digit && has_LETTER) && i < len(password); i++ {
+	for i := 0; !(hasDigit && hasLetter) && i < len(password); i++ {
 		c := password[i]
 		if c >= '0' && c <= '9' {
-			has_digit = true
+			hasDigit = true
 		} else if c >= 'A' && c <= 'Z' {
-			has_LETTER = true
+			hasLetter = true
 		}
 	}
 
-	return (has_digit && has_LETTER)
+	return (hasDigit && hasLetter)
 }
 
 func hashSlices(out []byte, hasher hash.Hash, slices ...[]byte) {

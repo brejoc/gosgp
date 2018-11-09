@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	MCL_CURRENT = 1
-	MCL_FUTURE  = 2
+	mclCurrent = 1
+	mclFuture  = 2
 )
 
 func lockMemory() {
-	syscall.Mlockall(MCL_CURRENT | MCL_FUTURE)
+	syscall.Mlockall(mclCurrent | mclFuture)
 }
