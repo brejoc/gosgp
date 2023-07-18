@@ -1,3 +1,5 @@
+[![build result](https://build.opensuse.org/projects/home:brejoc/packages/gosgp/badge.svg?type=default)](https://build.opensuse.org/package/show/home:brejoc/gosgp)
+
 ## gosgp - golang port of supergenpass.com
 
 gosgp is a command line tool to generate SuperGenPass passwords
